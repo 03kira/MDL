@@ -602,3 +602,448 @@ class FetchEpisodes(BaseFetch):
 
     def _get(self):
         self._get_main_container()
+
+
+# NEW CLASSES BASED ON NODE.JS FUNCTIONALITY
+
+class FetchNewsFeeds(BaseFetch):
+    """Fetch news feeds from homepage"""
+    
+    def __init__(self, soup: BeautifulSoup, query: str, code: int, ok: bool) -> None:
+        super().__init__(soup, query, code, ok)
+
+    def _get_main_container(self) -> None:
+        # Find the news container
+        feature_news_container = self.soup.find("div", id="articles-list-popular")
+        
+        if not feature_news_container:
+            self.info["newsFeeds"] = []
+            return
+
+        news_feeds = []
+        news_items = feature_news_container.find_all("div", class_="list-item article-item")
+
+        for item in news_items:
+            try:
+                # Extract image source
+                img_element = item.find("div", class_="list-left").find("a").find("img")
+                img_src = self._get_poster_from_element(img_element)
+
+                # Extract type/category
+                category_element = item.find("div", class_="list-body").find("div", class_="category-name").find("strong")
+                news_type = category_element.get_text().strip() if category_element else ""
+
+                # Extract title and link
+                title_element = item.find("div", class_="list-body").find("h6", class_="title").find("a")
+                title = title_element.get_text().strip() if title_element else ""
+                link = title_element.get("href") if title_element else ""
+
+                # Extract description
+                desc_element = item.find("div", class_="list-body").find("p")
+                desc = desc_element.get_text().strip() if desc_element else ""
+
+                # Extract publication date
+                pub_date_element = item.find("div", class_="list-bottom").find("div", class_="pub-date")
+                pub_date = pub_date_element.get_text().strip() if pub_date_element else ""
+
+                news_feeds.append({
+                    "imgSrc": img_src,
+                    "type": news_type,
+                    "title": title,
+                    "desc": desc,
+                    "link": urljoin(MYDRAMALIST_WEBSITE, link) if link else "",
+                    "pubDate": pub_date,
+                })
+
+            except Exception as e:
+                print(f"Error parsing news item: {e}")
+                continue
+
+        self.info["newsFeeds"] = news_feeds
+
+    def _get_poster_from_element(self, img_element) -> str:
+        """Extract image URL from img element"""
+        if not img_element:
+            return ""
+        
+        for attr in self._img_attrs:
+            if img_element.has_attr(attr):
+                return img_element[attr]
+        return ""
+
+    def _get(self) -> None:
+        self._get_main_container()
+
+
+class FetchTopAiring(BaseFetch):
+    """Fetch top airing shows by country"""
+    
+    def __init__(self, soup: BeautifulSoup, query: str, code: int, ok: bool) -> None:
+        super().__init__(soup, query, code, ok)
+
+    def _get_main_container(self) -> None:
+        top_shows = []
+        country_ids = [
+            "tpa-1",    # Japan
+            "tpa-2",    # China
+            "tpa-3",    # South Korea
+            "tpa-4",    # Hong Kong
+            "tpa-5",    # Taiwan
+            "tpa-6",    # Thailand
+            "tpa-140",  # Philippines
+        ]
+
+        for country_id in country_ids:
+            country_container = self.soup.find("div", id=country_id)
+            if not country_container:
+                continue
+
+            list_items = country_container.find("div", class_="list top-list").find_all("div", class_="list-item")
+
+            for item in list_items:
+                try:
+                    # Extract rank
+                    rank_element = item.find("div", class_="rank")
+                    rank = rank_element.get_text().strip() if rank_element else ""
+
+                    # Extract title and link
+                    title_element = item.find("div", class_="title")
+                    title = title_element.get_text().strip() if title_element else ""
+                    link = title_element.get("href") if title_element and title_element.get("href") else ""
+
+                    # Extract image
+                    img_element = item.find("img")
+                    img_src = self._get_poster_from_element(img_element)
+
+                    # Extract score
+                    score_element = item.find("div", class_="score")
+                    score = score_element.get_text().strip() if score_element else ""
+
+                    # Extract details
+                    detail_elements = item.find("div", class_="list-info").find_all("div", class_="text-sm")
+                    details = []
+                    for detail in detail_elements[1:]:  # Skip first element (score)
+                        details.append(detail.get_text().strip())
+                    detail_string = ", ".join(details)
+
+                    top_shows.append({
+                        "rank": rank,
+                        "title": title,
+                        "link": urljoin(MYDRAMALIST_WEBSITE, link) if link else "",
+                        "imgSrc": img_src,
+                        "score": score,
+                        "details": detail_string,
+                        "countryId": country_id,
+                    })
+
+                except Exception as e:
+                    print(f"Error parsing top airing item: {e}")
+                    continue
+
+        self.info["topAiringShows"] = top_shows
+
+    def _get_poster_from_element(self, img_element) -> str:
+        """Extract image URL from img element"""
+        if not img_element:
+            return ""
+        
+        for attr in self._img_attrs:
+            if img_element.has_attr(attr):
+                return img_element[attr]
+        return ""
+
+    def _get(self) -> None:
+        self._get_main_container()
+
+
+class FetchRecommendations(BaseFetch):
+    """Fetch drama recommendations with pagination"""
+    
+    def __init__(self, soup: BeautifulSoup, query: str, code: int, ok: bool) -> None:
+        super().__init__(soup, query, code, ok)
+
+    def _get_main_container(self) -> None:
+        recommendations = []
+        pages = []
+
+        # Scrape recommendations
+        recs_boxes = self.soup.find_all("div", class_="recs-box")
+        for box in recs_boxes:
+            try:
+                recommendation = {}
+
+                # Extract image
+                img_element = box.find("img", class_="img-responsive")
+                recommendation["imageSrc"] = self._get_poster_from_element(img_element)
+
+                # Extract title
+                title_element = box.find("b").find("a", class_="text-primary")
+                recommendation["title"] = title_element.get_text().strip() if title_element else ""
+
+                # Extract rating
+                score_element = box.find("span", class_="score")
+                recommendation["rating"] = score_element.get_text().strip() if score_element else ""
+
+                # Extract description (remove "Recommended by" text)
+                recs_body = box.find("div", class_="recs-body")
+                if recs_body:
+                    # Clone and remove the "Recommended by" section
+                    recs_by = recs_body.find("div", class_="recs-by")
+                    if recs_by:
+                        recs_by.decompose()
+                    recommendation["description"] = recs_body.get_text().strip()
+                else:
+                    recommendation["description"] = ""
+
+                # Extract recommended by
+                recommended_by_element = box.find("span", class_="recs-author").find("a", class_="text-primary")
+                recommendation["recommendedBy"] = recommended_by_element.get_text().strip() if recommended_by_element else ""
+
+                recommendations.append(recommendation)
+
+            except Exception as e:
+                print(f"Error parsing recommendation: {e}")
+                continue
+
+        # Scrape pagination
+        pagination = self.soup.find("ul", class_="pagination")
+        if pagination:
+            try:
+                current_page_element = pagination.find("li", class_="active")
+                current_page = current_page_element.get_text().strip() if current_page_element else "1"
+
+                prev_page_element = pagination.find("li", class_="prev")
+                prev_page_slug = ""
+                if prev_page_element and prev_page_element.find("a"):
+                    href = prev_page_element.find("a").get("href", "")
+                    prev_page_slug = href.replace("?page=", "").replace("&page=", "") if href else ""
+
+                next_page_element = pagination.find("li", class_="next")
+                next_page_slug = ""
+                if next_page_element and next_page_element.find("a"):
+                    href = next_page_element.find("a").get("href", "")
+                    next_page_slug = href.replace("?page=", "").replace("&page=", "") if href else ""
+
+                page_items = pagination.find_all("li", class_="page-item")
+                total_pages = len(page_items) - (2 if prev_page_element and next_page_element else 1)
+
+                pages.append({
+                    "currentPage": current_page,
+                    "prevPageSlug": prev_page_slug if prev_page_element else False,
+                    "nextPageSlug": next_page_slug if next_page_element else False,
+                    "totalPages": total_pages,
+                })
+
+            except Exception as e:
+                print(f"Error parsing pagination: {e}")
+
+        self.info["recommendations"] = recommendations
+        self.info["pages"] = pages
+
+    def _get_poster_from_element(self, img_element) -> str:
+        """Extract image URL from img element"""
+        if not img_element:
+            return ""
+        
+        for attr in self._img_attrs:
+            if img_element.has_attr(attr):
+                return img_element[attr]
+        return ""
+
+    def _get(self) -> None:
+        self._get_main_container()
+
+
+class FetchEpisodeDetails(BaseFetch):
+    """Fetch detailed episode information"""
+    
+    def __init__(self, soup: BeautifulSoup, query: str, code: int, ok: bool) -> None:
+        super().__init__(soup, query, code, ok)
+
+    def _get_main_container(self) -> None:
+        episode_details = []
+
+        # Find all episode items
+        episodes = self.soup.find_all("div", class_="episode")
+
+        for episode in episodes:
+            try:
+                # Extract title
+                title_element = episode.find(class_="title")
+                title = title_element.get_text().strip() if title_element else ""
+
+                # Extract link and episode number
+                link_element = title_element.find("a") if title_element else None
+                link = link_element.get("href") if link_element else ""
+                
+                # Extract episode number from link
+                episode_number = None
+                if link:
+                    import re
+                    match = re.search(r'episode/(\d+)', link)
+                    if match:
+                        episode_number = int(match.group(1))
+
+                # Extract rating
+                rating_element = episode.find("div", class_="rating-panel").find("b")
+                rating = rating_element.get_text().strip() if rating_element else ""
+                rating_int = None
+                try:
+                    rating_int = int(rating) if rating else None
+                except ValueError:
+                    rating_int = None
+
+                # Extract air date
+                air_date_element = episode.find("div", class_="air-date")
+                air_date = air_date_element.get_text().strip() if air_date_element else ""
+
+                # Extract poster image
+                cover_element = episode.find("div", class_="cover")
+                poster = ""
+                if cover_element:
+                    img_element = cover_element.find("img")
+                    poster = self._get_poster_from_element(img_element)
+
+                episode_detail = {
+                    "title": title,
+                    "link": urljoin(MYDRAMALIST_WEBSITE, link) if link else "",
+                    "rating": rating_int,
+                    "airDate": air_date,
+                    "episodeNumber": episode_number,
+                    "poster": poster,
+                }
+
+                episode_details.append(episode_detail)
+
+            except Exception as e:
+                print(f"Error parsing episode detail: {e}")
+                continue
+
+        self.info["episodeDetails"] = episode_details
+
+    def _get_poster_from_element(self, img_element) -> str:
+        """Extract image URL from img element"""
+        if not img_element:
+            return ""
+        
+        for attr in self._img_attrs:
+            if img_element.has_attr(attr):
+                return img_element[attr]
+        return ""
+
+    def _get(self) -> None:
+        self._get_main_container()
+
+
+class FetchShowsStartingThisWeek(BaseFetch):
+    """Fetch shows starting this week from homepage"""
+    
+    def __init__(self, soup: BeautifulSoup, query: str, code: int, ok: bool) -> None:
+        super().__init__(soup, query, code, ok)
+
+    def _get_main_container(self) -> None:
+        shows_starting = []
+
+        # Target the specific section for "Shows Starting This Week" using the exact selector from Node.js
+        starting_slides = self.soup.select("#slide-started .swiper-slide")
+
+        for slide in starting_slides:
+            try:
+                # Extract title
+                title_element = slide.find(class_="film-title")
+                title = title_element.get_text().strip() if title_element else ""
+
+                # Extract link
+                link_element = slide.find(class_="film-cover")
+                link = link_element.get("href") if link_element else ""
+
+                # Extract image (check data-src first, then src)
+                img_element = slide.find("img")
+                img_src = self._get_poster_from_element(img_element)
+
+                # Extract country/details
+                country_element = slide.find(class_="text-muted")
+                country = country_element.get_text().strip() if country_element else ""
+
+                shows_starting.append({
+                    "title": title,
+                    "link": urljoin(MYDRAMALIST_WEBSITE, link) if link else "",
+                    "imgSrc": img_src,
+                    "country": country,
+                })
+
+            except Exception as e:
+                print(f"Error parsing starting show: {e}")
+                continue
+
+        self.info["statingThisWeek"] = shows_starting  # Match Node.js property name
+
+    def _get_poster_from_element(self, img_element) -> str:
+        """Extract image URL from img element"""
+        if not img_element:
+            return ""
+        
+        for attr in self._img_attrs:
+            if img_element.has_attr(attr):
+                return img_element[attr]
+        return ""
+
+    def _get(self) -> None:
+        self._get_main_container()
+
+
+class FetchTodaysBirthdays(BaseFetch):
+    """Fetch today's birthdays from homepage"""
+    
+    def __init__(self, soup: BeautifulSoup, query: str, code: int, ok: bool) -> None:
+        super().__init__(soup, query, code, ok)
+
+    def _get_main_container(self) -> None:
+        birthdays = []
+
+        # Target the specific section for "Today's Birthday" using the exact selector from Node.js
+        birthday_slides = self.soup.select("#slide-birthday .swiper-slide")
+
+        for slide in birthday_slides:
+            try:
+                # Extract name
+                name_element = slide.find(class_="people-name")
+                name = name_element.get_text().strip() if name_element else ""
+
+                # Extract link
+                link_element = slide.find(class_="image")
+                link = link_element.get("href") if link_element else ""
+
+                # Extract image (check data-src first, then src)
+                img_element = slide.find("img")
+                img_src = self._get_poster_from_element(img_element)
+
+                # Extract details
+                details_element = slide.find(class_="text-muted")
+                details = details_element.get_text().strip() if details_element else ""
+
+                birthdays.append({
+                    "name": name,
+                    "link": urljoin(MYDRAMALIST_WEBSITE, link) if link else "",
+                    "imgSrc": img_src,
+                    "details": details,
+                })
+
+            except Exception as e:
+                print(f"Error parsing birthday person: {e}")
+                continue
+
+        self.info["todaysBirthday"] = birthdays  # Match Node.js property name
+
+    def _get_poster_from_element(self, img_element) -> str:
+        """Extract image URL from img element"""
+        if not img_element:
+            return ""
+        
+        for attr in self._img_attrs:
+            if img_element.has_attr(attr):
+                return img_element[attr]
+        return ""
+
+    def _get(self) -> None:
+        self._get_main_container()
