@@ -781,60 +781,65 @@ class FetchRecommendations(BaseFetch):
             return
 
         # Scrape recommendations - look for individual recommendation boxes
-        recs_box = container.find("div", class_="row recs-box")
+        rec_containers = main_container.find_all("div", class_="box-body b-t")
         
         for container in rec_containers:
             try:
-                recs_box = container.find("div", class_="row recs-box")
+                recs_box = container.find("div", class_="recs-box")
                 if not recs_box:
                     continue
-                
+                    
                 recommendation = {}
-                
-                # Image
-                img_element = recs_box.find("div", class_="col-xs-2").find("img", class_="img-responsive")
+
+                # Extract image
+                img_element = recs_box.find("img", class_="img-responsive")
                 recommendation["imageSrc"] = self._get_poster_from_element(img_element)
-                
-                # Metadata container
-                meta_container = recs_box.find("div", class_="col-xs-10")
-                
-                # Title & Link
-                b_tag = meta_container.find("b")
-                title_element = b_tag.find("a", class_="text-primary") if b_tag else None
-                recommendation["title"] = title_element.get_text(strip=True) if title_element else ""
-                recommendation["link"] = urljoin(MYDRAMALIST_WEBSITE, title_element.get("href", "")) if title_element else ""
-                
-                # Rating
-                score_element = meta_container.find("span", class_="score")
-                recommendation["rating"] = score_element.get_text(strip=True) if score_element else ""
-                
-                # Description
-                recs_body = meta_container.find("div", class_="recs-body")
+
+                # Extract title and link
+                title_element = recs_box.find("b").find("a", class_="text-primary")
+                if title_element:
+                    recommendation["title"] = title_element.get_text().strip()
+                    recommendation["link"] = urljoin(MYDRAMALIST_WEBSITE, title_element.get("href", ""))
+                else:
+                    recommendation["title"] = ""
+                    recommendation["link"] = ""
+
+                # Extract rating/score
+                score_element = recs_box.find("span", class_="score")
+                recommendation["rating"] = score_element.get_text().strip() if score_element else ""
+
+                # Extract description (from recs-body, excluding the recs-by section)
+                recs_body = recs_box.find("div", class_="recs-body")
                 if recs_body:
-                    recs_body_copy = BeautifulSoup(str(recs_body), "html.parser")
+                    # Clone the element to avoid modifying the original
+                    recs_body_copy = recs_body.__copy__()
+                    
+                    # Remove the "recs-by" div and any "more-recs-container" divs
                     recs_by = recs_body_copy.find("div", class_="recs-by")
                     if recs_by:
                         recs_by.decompose()
+                    
                     more_recs = recs_body_copy.find("div", class_="more-recs-container")
                     if more_recs:
                         more_recs.decompose()
-                    recommendation["description"] = recs_body_copy.get_text(strip=True)
+                    
+                    recommendation["description"] = recs_body_copy.get_text().strip()
                 else:
                     recommendation["description"] = ""
-                
-                # Recommended by
-                recs_by_section = meta_container.find("div", class_="recs-by")
+
+                # Extract recommended by
+                recs_by_section = recs_box.find("div", class_="recs-by")
                 if recs_by_section:
-                    author = recs_by_section.find("span", class_="recs-author")
-                    recommended_by_element = author.find("a", class_="text-primary") if author else None
-                    recommendation["recommendedBy"] = recommended_by_element.get_text(strip=True) if recommended_by_element else ""
+                    recommended_by_element = recs_by_section.find("span", class_="recs-author").find("a", class_="text-primary")
+                    recommendation["recommendedBy"] = recommended_by_element.get_text().strip() if recommended_by_element else ""
                     
+                    # Extract like count
                     like_element = recs_by_section.find("span", class_="jbtn-like").find("span", class_="like-cnt")
-                    recommendation["likeCount"] = like_element.get_text(strip=True) if like_element else "0"
+                    recommendation["likeCount"] = like_element.get_text().strip() if like_element else "0"
                 else:
                     recommendation["recommendedBy"] = ""
                     recommendation["likeCount"] = "0"
-                
+
                 recommendations.append(recommendation)
 
             except Exception as e:
