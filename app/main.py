@@ -1,11 +1,21 @@
-from typing import Any, Dict
+from typing import Any, Dict 
 
 import cloudscraper  # bypassing cloudflare anti-bot
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.lib.msgspec_json import MsgSpecJSONResponse
-from app.utils import fetch_func, search_func
+from app.utils import (
+    fetch_func, 
+    search_func,
+    # New specialized functions
+    fetch_homepage_newsfeeds,
+    fetch_homepage_topairing,
+    fetch_homepage_shows_starting_this_week,
+    fetch_homepage_todays_birthdays,
+    fetch_drama_recommendations,
+    fetch_drama_episode_details,
+)
 
 app = FastAPI(
     title="Kuryana",
@@ -106,3 +116,83 @@ async def mdlSeasonal(year: int, quarter: int) -> Any:
         "https://mydramalist.com/v1/quarter_calendar",
         data={"quarter": quarter, "year": year},
     ).json()
+
+
+# NEW ENDPOINTS BASED ON NODE.JS FUNCTIONALITY
+
+@app.get("/api/mdl/newsfeeds")
+async def get_newsfeeds(response: Response) -> Dict[str, Any]:
+    """Get news feeds from MDL homepage"""
+    try:
+        code, data = await fetch_homepage_newsfeeds()
+        response.status_code = code
+        return data
+    except Exception as err:
+        print(f"Error in mdl newsfeeds request: {err}")
+        response.status_code = 422
+        return {"errors": [{"msg": "Server Error"}]}
+
+
+@app.get("/api/mdl/topairing")
+async def get_top_airing(response: Response) -> Dict[str, Any]:
+    """Get top airing shows from MDL homepage"""
+    try:
+        code, data = await fetch_homepage_topairing()
+        response.status_code = code
+        return data
+    except Exception as err:
+        print(f"Error in mdl top airing request: {err}")
+        response.status_code = 422
+        return {"errors": [{"msg": "Server Error"}]}
+
+
+@app.get("/api/mdl/showsstartingthisweek")
+async def get_shows_starting_this_week(response: Response) -> Dict[str, Any]:
+    """Get shows starting this week from MDL homepage"""
+    try:
+        code, data = await fetch_homepage_shows_starting_this_week()
+        response.status_code = code
+        return data
+    except Exception as err:
+        print(f"Error in mdl shows starting this week request: {err}")
+        response.status_code = 422
+        return {"errors": [{"msg": "Server Error"}]}
+
+
+@app.get("/api/mdl/todaysbirthdays")
+async def get_todays_birthdays(response: Response) -> Dict[str, Any]:
+    """Get today's birthdays from MDL homepage"""
+    try:
+        code, data = await fetch_homepage_todays_birthdays()
+        response.status_code = code
+        return data
+    except Exception as err:
+        print(f"Error in mdl today's birthdays request: {err}")
+        response.status_code = 422
+        return {"errors": [{"msg": "Server Error"}]}
+
+
+@app.get("/api/mdl/recommendations")
+async def get_recommendations(query: str, page: int = 1, response: Response = None) -> Dict[str, Any]:
+    """Get drama recommendations with pagination"""
+    try:
+        code, data = await fetch_drama_recommendations(drama_id=query, page=page)
+        response.status_code = code
+        return data
+    except Exception as err:
+        print(f"Error in mdl recommendations request: {err}")
+        response.status_code = 422
+        return {"errors": [{"msg": "Server Error"}]}
+
+
+@app.get("/api/mdl/episode-details")
+async def get_episode_details(query: str, response: Response = None) -> Dict[str, Any]:
+    """Get detailed episode information"""
+    try:
+        code, data = await fetch_drama_episode_details(drama_id=query)
+        response.status_code = code
+        return data
+    except Exception as err:
+        print(f"Error in mdl episode details request: {err}")
+        response.status_code = 422
+        return {"errors": [{"msg": "Server Error"}]}
