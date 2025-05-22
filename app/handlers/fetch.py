@@ -698,31 +698,36 @@ class FetchTopAiring(BaseFetch):
             if not country_container:
                 continue
 
-            list_items = country_container.find("div", class_="list top-list").find_all("div", class_="list-item")
+            list_container = country_container.find("ul", class_="list top-list")
+            if not list_container:
+                continue
+                
+            list_items = list_container.find_all("li", class_="list-item")
 
             for item in list_items:
                 try:
                     # Extract rank
-                    rank_element = item.find("div", class_="rank")
+                    rank_element = item.find("div", class_="list-left rank")
                     rank = rank_element.get_text().strip() if rank_element else ""
 
                     # Extract title and link
-                    title_element = item.find("div", class_="title")
+                    title_element = item.find("a", class_="title")
                     title = title_element.get_text().strip() if title_element else ""
                     link = title_element.get("href") if title_element and title_element.get("href") else ""
 
                     # Extract image
-                    img_element = item.find("img")
+                    img_element = item.find("img", class_="lazy")
                     img_src = self._get_poster_from_element(img_element)
 
                     # Extract score
-                    score_element = item.find("div", class_="score")
+                    score_element = item.find("div", class_="list-info").find("span", class_="score")
                     score = score_element.get_text().strip() if score_element else ""
 
-                    # Extract details
-                    detail_elements = item.find("div", class_="list-info").find_all("div", class_="text-sm")
+                    # Extract details (drama type, episodes, watchers)
+                    list_info = item.find("div", class_="list-info")
+                    detail_elements = list_info.find_all("div", class_="text-sm")
                     details = []
-                    for detail in detail_elements[1:]:  # Skip first element (score)
+                    for detail in detail_elements:
                         details.append(detail.get_text().strip())
                     detail_string = ", ".join(details)
 
@@ -747,9 +752,11 @@ class FetchTopAiring(BaseFetch):
         if not img_element:
             return ""
         
-        for attr in self._img_attrs:
-            if img_element.has_attr(attr):
-                return img_element[attr]
+        # Check for data-src first (lazy loading), then src
+        if img_element.has_attr("data-src"):
+            return img_element["data-src"]
+        elif img_element.has_attr("src"):
+            return img_element["src"]
         return ""
 
     def _get(self) -> None:
@@ -766,38 +773,72 @@ class FetchRecommendations(BaseFetch):
         recommendations = []
         pages = []
 
-        # Scrape recommendations
-        recs_boxes = self.soup.find_all("div", class_="recs-box")
-        for box in recs_boxes:
+        # Find the main recommendations container
+        main_container = self.soup.find("div", id="recs-box")
+        if not main_container:
+            self.info["recommendations"] = recommendations
+            self.info["pages"] = pages
+            return
+
+        # Scrape recommendations - look for individual recommendation boxes
+        rec_containers = main_container.find_all("div", class_="box-body b-t")
+        
+        for container in rec_containers:
             try:
+                recs_box = container.find("div", class_="recs-box")
+                if not recs_box:
+                    continue
+                    
                 recommendation = {}
 
                 # Extract image
-                img_element = box.find("img", class_="img-responsive")
+                img_element = recs_box.find("img", class_="img-responsive")
                 recommendation["imageSrc"] = self._get_poster_from_element(img_element)
 
-                # Extract title
-                title_element = box.find("b").find("a", class_="text-primary")
-                recommendation["title"] = title_element.get_text().strip() if title_element else ""
+                # Extract title and link
+                title_element = recs_box.find("b").find("a", class_="text-primary")
+                if title_element:
+                    recommendation["title"] = title_element.get_text().strip()
+                    recommendation["link"] = urljoin(MYDRAMALIST_WEBSITE, title_element.get("href", ""))
+                else:
+                    recommendation["title"] = ""
+                    recommendation["link"] = ""
 
-                # Extract rating
-                score_element = box.find("span", class_="score")
+                # Extract rating/score
+                score_element = recs_box.find("span", class_="score")
                 recommendation["rating"] = score_element.get_text().strip() if score_element else ""
 
-                # Extract description (remove "Recommended by" text)
-                recs_body = box.find("div", class_="recs-body")
+                # Extract description (from recs-body, excluding the recs-by section)
+                recs_body = recs_box.find("div", class_="recs-body")
                 if recs_body:
-                    # Clone and remove the "Recommended by" section
-                    recs_by = recs_body.find("div", class_="recs-by")
+                    # Clone the element to avoid modifying the original
+                    recs_body_copy = recs_body.__copy__()
+                    
+                    # Remove the "recs-by" div and any "more-recs-container" divs
+                    recs_by = recs_body_copy.find("div", class_="recs-by")
                     if recs_by:
                         recs_by.decompose()
-                    recommendation["description"] = recs_body.get_text().strip()
+                    
+                    more_recs = recs_body_copy.find("div", class_="more-recs-container")
+                    if more_recs:
+                        more_recs.decompose()
+                    
+                    recommendation["description"] = recs_body_copy.get_text().strip()
                 else:
                     recommendation["description"] = ""
 
                 # Extract recommended by
-                recommended_by_element = box.find("span", class_="recs-author").find("a", class_="text-primary")
-                recommendation["recommendedBy"] = recommended_by_element.get_text().strip() if recommended_by_element else ""
+                recs_by_section = recs_box.find("div", class_="recs-by")
+                if recs_by_section:
+                    recommended_by_element = recs_by_section.find("span", class_="recs-author").find("a", class_="text-primary")
+                    recommendation["recommendedBy"] = recommended_by_element.get_text().strip() if recommended_by_element else ""
+                    
+                    # Extract like count
+                    like_element = recs_by_section.find("span", class_="jbtn-like").find("span", class_="like-cnt")
+                    recommendation["likeCount"] = like_element.get_text().strip() if like_element else "0"
+                else:
+                    recommendation["recommendedBy"] = ""
+                    recommendation["likeCount"] = "0"
 
                 recommendations.append(recommendation)
 
@@ -806,32 +847,50 @@ class FetchRecommendations(BaseFetch):
                 continue
 
         # Scrape pagination
-        pagination = self.soup.find("ul", class_="pagination")
+        pagination = main_container.find("div", class_="box-footer b-t").find("ul", class_="pagination")
         if pagination:
             try:
+                # Find current page
                 current_page_element = pagination.find("li", class_="active")
-                current_page = current_page_element.get_text().strip() if current_page_element else "1"
+                current_page = current_page_element.find("a").get_text().strip() if current_page_element else "1"
 
+                # Find previous page
                 prev_page_element = pagination.find("li", class_="prev")
                 prev_page_slug = ""
                 if prev_page_element and prev_page_element.find("a"):
                     href = prev_page_element.find("a").get("href", "")
-                    prev_page_slug = href.replace("?page=", "").replace("&page=", "") if href else ""
+                    if href:
+                        # Extract page number from href
+                        import re
+                        match = re.search(r'page=(\d+)', href)
+                        prev_page_slug = match.group(1) if match else ""
 
+                # Find next page
                 next_page_element = pagination.find("li", class_="next")
                 next_page_slug = ""
                 if next_page_element and next_page_element.find("a"):
                     href = next_page_element.find("a").get("href", "")
-                    next_page_slug = href.replace("?page=", "").replace("&page=", "") if href else ""
+                    if href:
+                        # Extract page number from href
+                        import re
+                        match = re.search(r'page=(\d+)', href)
+                        next_page_slug = match.group(1) if match else ""
 
-                page_items = pagination.find_all("li", class_="page-item")
-                total_pages = len(page_items) - (2 if prev_page_element and next_page_element else 1)
+                # Find last page to determine total pages
+                last_page_element = pagination.find("li", class_="last")
+                total_pages = current_page
+                if last_page_element and last_page_element.find("a"):
+                    href = last_page_element.find("a").get("href", "")
+                    if href:
+                        import re
+                        match = re.search(r'page=(\d+)', href)
+                        total_pages = match.group(1) if match else current_page
 
                 pages.append({
                     "currentPage": current_page,
-                    "prevPageSlug": prev_page_slug if prev_page_element else False,
-                    "nextPageSlug": next_page_slug if next_page_element else False,
-                    "totalPages": total_pages,
+                    "prevPageSlug": prev_page_slug if prev_page_slug else False,
+                    "nextPageSlug": next_page_slug if next_page_slug else False,
+                    "totalPages": int(total_pages),
                 })
 
             except Exception as e:
@@ -845,9 +904,11 @@ class FetchRecommendations(BaseFetch):
         if not img_element:
             return ""
         
-        for attr in self._img_attrs:
-            if img_element.has_attr(attr):
-                return img_element[attr]
+        # Check for src first, then data-src
+        if img_element.has_attr("src"):
+            return img_element["src"]
+        elif img_element.has_attr("data-src"):
+            return img_element["data-src"]
         return ""
 
     def _get(self) -> None:
