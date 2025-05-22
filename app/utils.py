@@ -8,6 +8,13 @@ from app.handlers.fetch import (
     FetchList,
     FetchPerson,
     FetchReviews,
+    # New fetch classes
+    FetchNewsFeeds,
+    FetchTopAiring,
+    FetchRecommendations,
+    FetchEpisodeDetails,
+    FetchShowsStartingThisWeek,
+    FetchTodaysBirthdays,
 )
 from app.handlers.search import Search
 
@@ -41,6 +48,13 @@ fs = {
     "lists": FetchList,
     "dramalist": FetchDramaList,
     "episodes": FetchEpisodes,
+    # New fetch types
+    "newsfeeds": FetchNewsFeeds,
+    "topairing": FetchTopAiring,
+    "recommendations": FetchRecommendations,
+    "episodedetails": FetchEpisodeDetails,
+    "showsstartingthisweek": FetchShowsStartingThisWeek,
+    "todaysbirthdays": FetchTodaysBirthdays,
 }
 
 
@@ -56,3 +70,36 @@ async def fetch_func(query: str, t: str) -> Tuple[int, Dict[str, Any]]:
         f._get()
 
     return f.status_code, f.fetch()
+
+
+# New specialized functions for homepage data
+async def fetch_homepage_newsfeeds() -> Tuple[int, Dict[str, Any]]:
+    """Fetch news feeds from homepage"""
+    return await fetch_func(query="", t="newsfeeds")
+
+
+async def fetch_homepage_topairing() -> Tuple[int, Dict[str, Any]]:
+    """Fetch top airing shows from homepage"""
+    return await fetch_func(query="", t="topairing")
+
+
+async def fetch_homepage_shows_starting_this_week() -> Tuple[int, Dict[str, Any]]:
+    """Fetch shows starting this week from homepage"""
+    return await fetch_func(query="", t="showsstartingthisweek")
+
+
+async def fetch_homepage_todays_birthdays() -> Tuple[int, Dict[str, Any]]:
+    """Fetch today's birthdays from homepage"""
+    return await fetch_func(query="", t="todaysbirthdays")
+
+
+async def fetch_drama_recommendations(drama_id: str, page: int = 1) -> Tuple[int, Dict[str, Any]]:
+    """Fetch drama recommendations with pagination"""
+    query = f"{drama_id}/recs?page={page}"
+    return await fetch_func(query=query, t="recommendations")
+
+
+async def fetch_drama_episode_details(drama_id: str) -> Tuple[int, Dict[str, Any]]:
+    """Fetch detailed episode information"""
+    query = f"{drama_id}/episodes"
+    return await fetch_func(query=query, t="episodedetails")
