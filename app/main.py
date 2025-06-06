@@ -12,6 +12,7 @@ from app.utils import (
     fetch_homepage_newsfeeds,
     fetch_homepage_topairing,
     fetch_homepage_shows_starting_this_week,
+    fetch_homepage_trending_this_week,
     fetch_homepage_todays_birthdays,
     fetch_drama_recommendations,
     fetch_drama_episode_details,
@@ -155,6 +156,19 @@ async def get_shows_starting_this_week(response: Response) -> Dict[str, Any]:
         return data
     except Exception as err:
         print(f"Error in mdl shows starting this week request: {err}")
+        response.status_code = 422
+        return {"errors": [{"msg": "Server Error"}]}
+
+
+@app.get("/api/mdl/trendingthisweek")
+async def get_trending_this_week(response: Response) -> Dict[str, Any]:
+    """Get shows trending this week from MDL homepage"""
+    try:
+        code, data = await fetch_homepage_trending_this_week()
+        response.status_code = code
+        return data
+    except Exception as err:
+        print(f"Error in mdl trending this week request: {err}")
         response.status_code = 422
         return {"errors": [{"msg": "Server Error"}]}
 
