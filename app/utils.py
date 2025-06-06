@@ -55,6 +55,7 @@ fs = {
     "recommendations": FetchRecommendations,
     "episodedetails": FetchEpisodeDetails,
     "showsstartingthisweek": FetchShowsStartingThisWeek,
+    "trendingthisweek": FetchShowsTrendingThisWeek,
     "todaysbirthdays": FetchTodaysBirthdays,
 }
 
@@ -88,6 +89,9 @@ async def fetch_homepage_shows_starting_this_week() -> Tuple[int, Dict[str, Any]
     """Fetch shows starting this week from homepage"""
     return await fetch_func(query="", t="showsstartingthisweek")
 
+async def fetch_homepage_trending_this_week() -> Tuple[int, Dict[str, Any]]:
+    """Fetch shows trending this week from homepage"""
+    return await fetch_func(query="", t="trendingthisweek")
 
 async def fetch_homepage_todays_birthdays() -> Tuple[int, Dict[str, Any]]:
     """Fetch today's birthdays from homepage"""
