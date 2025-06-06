@@ -14,6 +14,7 @@ from app.handlers.fetch import (
     FetchRecommendations,
     FetchEpisodeDetails,
     FetchShowsStartingThisWeek,
+    FetchShowsTrendingThisWeek,
     FetchTodaysBirthdays,
 )
 from app.handlers.search import Search
