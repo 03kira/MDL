@@ -1054,7 +1054,6 @@ class FetchShowsTrendingThisWeek(BaseFetch):
     def _get(self) -> None:
         self._get_main_container()
 
-
 class FetchTodaysBirthdays(BaseFetch):
     """Fetch today's birthdays from homepage"""
     
