@@ -998,6 +998,62 @@ class FetchShowsStartingThisWeek(BaseFetch):
     def _get(self) -> None:
         self._get_main_container()
 
+class FetchShowsTrendingThisWeek(BaseFetch):
+    """Fetch shows trending this week from homepage"""
+    
+    def __init__(self, soup: BeautifulSoup, query: str, code: int, ok: bool) -> None:
+        super().__init__(soup, query, code, ok)
+
+    def _get_main_container(self) -> None:
+        trending_shows = []
+
+        # Target the specific section for "Shows Trending This Week" using the exact selector from Node.js
+        trending_slides = self.soup.select("#slide-trending .swiper-slide")
+
+        for slide in trending_slides:
+            try:
+                # Extract title
+                title_element = slide.find(class_="film-title")
+                title = title_element.get_text().strip() if title_element else ""
+
+                # Extract link
+                link_element = slide.find(class_="film-cover")
+                link = link_element.get("href") if link_element else ""
+
+                # Extract image (check data-src first, then src)
+                img_element = slide.find("img")
+                img_src = self._get_poster_from_element(img_element)
+
+                # Extract country/details
+                country_element = slide.find(class_="text-muted")
+                country = country_element.get_text().strip() if country_element else ""
+
+                trending_shows.append({
+                    "title": title,
+                    "link": urljoin(MYDRAMALIST_WEBSITE, link) if link else "",
+                    "imgSrc": img_src,
+                    "country": country,
+                })
+
+            except Exception as e:
+                print(f"Error parsing trending show: {e}")
+                continue
+
+        self.info["trendingThisWeek"] = trending_shows
+
+    def _get_poster_from_element(self, img_element) -> str:
+        """Extract image URL from img element"""
+        if not img_element:
+            return ""
+        
+        for attr in self._img_attrs:
+            if img_element.has_attr(attr):
+                return img_element[attr]
+        return ""
+
+    def _get(self) -> None:
+        self._get_main_container()
+
 
 class FetchTodaysBirthdays(BaseFetch):
     """Fetch today's birthdays from homepage"""
