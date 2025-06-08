@@ -856,7 +856,7 @@ class FetchRecommendations(BaseFetch):
     def _get_poster_from_element(self, img_element) -> str:
         if not img_element:
             return ""
-        return img_element.get("src") or img_element.get("data-src", "")
+        return img_element.get("src") or img_element.get("data-src")
 
     def _get(self) -> None:
         self._get_main_container()
