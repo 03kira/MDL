@@ -25,7 +25,7 @@ class FetchDrama(BaseFetch):
         # Title = Goblin
         # Complete Title = Goblin (2016)
         film_title = container.find("h1", class_="film-title")
-        self.info["title"] = film_title.find("a").get_text().strip()
+        self.info["title"] = film_title.get_text().strip()
         self.info["complete_title"] = film_title.get_text().strip()
 
         # RATING (could be either N/A or with number)
