@@ -28,6 +28,9 @@ class FetchDrama(BaseFetch):
         self.info["title"] = film_title.get_text().strip()
         self.info["complete_title"] = film_title.get_text().strip()
 
+        film_subtitle = container.find("div", class_="film-subtitle")
+        self.info["sub_title"] = film_subtitle.get_text().strip()
+
         # RATING (could be either N/A or with number)
         self.info["rating"] = self._handle_rating(
             container.find("div", class_="col-film-rating").find("div")
@@ -104,15 +107,19 @@ class FetchPerson(BaseFetch):
         # these are the most important drama infos / details
 
         # NAME
-        self.info["name"] = container.find("h1", class_="film-title").text
+        self.info["name"] = container.find("h1", class_="film-title").get_text().strip()
 
         # ABOUT?
         __temp_about = container.find("div", class_="col-lg-8 col-md-8").find(
             "div", class_="col-sm-8 col-lg-12 col-md-12"
         )
-        self.info["about"] = __temp_about.text.replace(
-            __temp_about.find("div", class_="hidden-md-up").text.strip(), ""
-        ).strip()
+        self.info["about"] = (
+            __temp_about.text.replace(
+                __temp_about.find("div", class_="hidden-md-up").text.strip(), ""
+            )
+            .replace("Remove ads\n\n", "")
+            .strip()
+        )
 
         # IMAGE
         self.info["profile"] = self._get_poster(container)
@@ -196,7 +203,9 @@ class FetchCast(BaseFetch):
         # these are the most important drama infos / details
 
         # TITLE
-        self.info["title"] = container.find("h1", class_="film-title").find("a").text
+        self.info["title"] = (
+            container.find("h1", class_="film-title").get_text().strip()
+        )
 
         # POSTER
         self.info["poster"] = self._get_poster(container)
@@ -251,7 +260,9 @@ class FetchReviews(BaseFetch):
         # these are the most important drama infos / details
 
         # TITLE
-        self.info["title"] = container.find("h1", class_="film-title").find("a").text
+        self.info["title"] = (
+            container.find("h1", class_="film-title").get_text().strip()
+        )
 
         # POSTER
         self.info["poster"] = self._get_poster(container)
